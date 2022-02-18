@@ -24,23 +24,22 @@ I appreciate that the fragmented, multi-step process is not the best solution. H
 
 The charts featured in the aforementioned [Brews News Article](https://www.brewsnews.com.au/2021/12/22/complaints-spike-as-abac-judges-major-brands/) were created using PowerBI. Given what I've learned since about Python, [Plotly](https://plotly.com/) and [Dash](https://dash.plotly.com/), it's my hope to integrate these into the solution.
 
-## AWK Commands
+## 1. AWK Commands to build list of URLs
 
-ABAC Scraping
--------------
+### About these commands
 
-Structure of URLs: 
+The following test commands are the trial and error to arrive at the end command to collect the data. I have kept them here for testing and expanatory purposes.
 
-`https://www.abac.org.au/adjudication/page/<page number>/`
+### Adjudication Decision Pages
 
-Note that page "1" does not exist. The page of most recent results is simply "https://www.abac.org.au/adjudication/"
+ABAC adjudications are made available on the ABAC website over multiple pages, with ten per page. The URL for each page is `https://www.abac.org.au/adjudication/page/<page number>/`, except for the first page (most recent decisions) which is simply `https://www.abac.org.au/adjudication/`
 
-
-To check and see how far back decisions go (what the last page number is) use the following, changing the "i" values in the loop to test. (15/12/2021 last page is 80)
+To see how far back decisions go (how many pages and what the last page number is) use the following command. The example checks for the existence of pages 70 through to 90. (as of 15/12/2021 last page is 80)
 
 `for((i=70;i<=90;i+=1)); do wget --spider -S "https://www.abac.org.au/adjudication/page/$i/" 2>&1 | awk "/HTTP\/|page/{print $1}"; done`
 
-### Retreive just name of decisions
+### Individual Adjudication Decisions
+
 
 First Page (no number in url)
 
