@@ -12,15 +12,17 @@ The scripts in this repository scrape high level information about adjudications
 An early iteration of this code was used to collect data for [this article](https://www.brewsnews.com.au/2021/12/22/complaints-spike-as-abac-judges-major-brands/) on Australian and New Zealand beer industry news website, [Brews News](https://www.brewsnews.com.au/).
 
 ### Again, why?
-Yup, this is boring stuff and probably only of interest to a few people. I began developing this solution, not becuase I saw a wide need for the end output, but simply as a practical way to learn more about the technologies used and to build my portfolio of work.
+Yup, this is boring stuff and probably only of interest to only a few people. I began developing this solution, not becuase I saw a wide need for the end output, but simply as a practical way to learn more about the technologies used and to build my portfolio of work.
 
-## Structure
+## Structure / Design
 The scripts/commands in this repo are designed to work as follows.
 1. Build a list of URLs for each adjudication on the ABAC website (AWK commands)
 2. Iterate over the list of URLs to produce a CSV of data from each adjudication page (Python)
 3. Perform some tidying/sanitising of the output CSV (AWK script)
 
-I appreciate that the fragmented, multi-step process
+I appreciate that the fragmented, multi-step process is not the best solution. However, the initial commands/code I developed were written over approximately two years, with long breaks inbetween and no real end goal in mind. I hope to find the time to consolidate the code into one, probably Python, application.
+
+The charts featured in the aforementioned [Brews News Article](https://www.brewsnews.com.au/2021/12/22/complaints-spike-as-abac-judges-major-brands/) were created using PowerBI. Given what I've learned since about Python, [Plotly](https://plotly.com/) and [Dash](https://dash.plotly.com/) it's my hope to integrate these into the solution.
 
 ## AWK Commands
 
