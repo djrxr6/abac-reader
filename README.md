@@ -22,43 +22,57 @@ The scripts/commands in this repo are designed to work as follows.
 
 I appreciate that the fragmented, multi-step process is not the best solution. However, the initial commands/code I developed were written over approximately two years, with long breaks inbetween and no real end goal in mind. I hope to find the time to consolidate the code into one, probably Python, application.
 
-The charts featured in the aforementioned [Brews News Article](https://www.brewsnews.com.au/2021/12/22/complaints-spike-as-abac-judges-major-brands/) were created using PowerBI. Given what I've learned since about Python, [Plotly](https://plotly.com/) and [Dash](https://dash.plotly.com/) it's my hope to integrate these into the solution.
+The charts featured in the aforementioned [Brews News Article](https://www.brewsnews.com.au/2021/12/22/complaints-spike-as-abac-judges-major-brands/) were created using PowerBI. Given what I've learned since about Python, [Plotly](https://plotly.com/) and [Dash](https://dash.plotly.com/), it's my hope to integrate these into the solution.
 
 ## AWK Commands
 
 ABAC Scraping
 -------------
 
-Structure of URLs: https://www.abac.org.au/adjudication/page/<page number>/
+Structure of URLs: 
 
-Page "1" does not exist. Most recent page is simply "https://www.abac.org.au/adjudication/"
+`https://www.abac.org.au/adjudication/page/<page number>/`
+
+Note that page "1" does not exist. The page of most recent results is simply "https://www.abac.org.au/adjudication/"
 
 
 To check and see how far back decisions go (what the last page number is) use the following, changing the "i" values in the loop to test. (15/12/2021 last page is 80)
 
-for((i=70;i<=90;i+=1)); do wget --spider -S "https://www.abac.org.au/adjudication/page/$i/" 2>&1 | awk "/HTTP\/|page/{print $1}"; done
+`for((i=70;i<=90;i+=1)); do wget --spider -S "https://www.abac.org.au/adjudication/page/$i/" 2>&1 | awk "/HTTP\/|page/{print $1}"; done`
 
-Retreive just name of decisions
-curl --silent https://www.abac.org.au/adjudication/ | grep adjudication | grep h2
-curl --silent https://www.abac.org.au/adjudication/page/1 | grep adjudication | grep h2
+### Retreive just name of decisions
 
-Collect the URL for the decision page, the Name of the product and the date of the decision.
+First Page (no number in url)
 
-Test on one page only
-curl --silent https://www.abac.org.au/adjudication/page/2/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">([A-Za-z0-9&\ ]*)<\/a.*date">(.*)<\/p>/\1;\2;\3/'
+`curl --silent https://www.abac.org.au/adjudication/ | grep adjudication | grep h2`
 
-All pages in range of loop.
+Other pages (example is page 1)
 
-for((i=2;i<=4;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/'; done
+`curl --silent https://www.abac.org.au/adjudication/page/1 | grep adjudication | grep h2`
+
+### Collect the URL for the decision page, the Name of the product and the date of the decision.
+
+Test on single page and output to console.
+
+`curl --silent https://www.abac.org.au/adjudication/page/2/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">([A-Za-z0-9&\ ]*)<\/a.*date">(.*)<\/p>/\1;\2;\3/'`
+
+Test for multiple pages by looping through a range. Output to console.
+
+`for((i=2;i<=4;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/'; done`
 
 Output to text file
-curl --silent https://www.abac.org.au/adjudication/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' > abac-adjudications.csv
-for((i=2;i<=20;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' >> abac-adjudications.csv; done
-for((i=21;i<=40;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' >> abac-adjudications.csv; done
-for((i=41;i<=60;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' >> abac-adjudications.csv; done
-for((i=61;i<=80;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' >> abac-adjudications.csv; done
+
+`curl --silent https://www.abac.org.au/adjudication/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' > abac-adjudications.csv`
+
+`for((i=2;i<=20;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' >> abac-adjudications.csv; done`
+
+`for((i=21;i<=40;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' >> abac-adjudications.csv; done`
+
+`for((i=41;i<=60;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' >> abac-adjudications.csv; done`
+
+`for((i=61;i<=80;i+=1)); do curl --silent https://www.abac.org.au/adjudication/page/$i/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1;\2;\3/' >> abac-adjudications.csv; done`
 
 
 
-curl --silent https://www.abac.org.au/adjudication/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1/'
+`curl --silent https://www.abac.org.au/adjudication/ | awk '/adjudication|class="date">./{print $0}' | grep 'h2\|date' | awk 'NR%2{printf "%s ",$0;next;}1' | sed -r 's/.*href="(.*)">(.*)<\/a.*date">(.*)<\/p>/\1/'`
 
