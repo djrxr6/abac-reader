@@ -1,3 +1,5 @@
 abac-adjudications-detailed.txt
+abac-adjudications-full-NEW.txt
 abac-adjudications-full.txt
 abac-adjudications.csv
+*.pyc
