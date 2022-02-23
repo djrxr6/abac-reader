@@ -98,6 +98,8 @@ def write_csv_file(lines_array):
     for line in lines_array:
         output_file.write(line + "\n")
     output_file.close()
+
+
 ########################################
 # Begin
 ########################################
@@ -108,10 +110,6 @@ last_page_number = 2
 
 abac_adjudications_pages_urls = []
 
-#get_urls_from_abac_page('https://www.abac.org.au/adjudication/page/1')
-
-#print(results)
-
 #abac_adjudications_pages_urls.extend(get_urls_from_abac_page('https://www.abac.org.au/adjudication/page/1'))
 #abac_adjudications_pages_urls.extend(get_urls_from_abac_page('https://www.abac.org.au/adjudication/page/2'))
 
@@ -121,7 +119,7 @@ abac_adjudications_pages_urls = []
 pd.set_option('display.max_rows', None)
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
-pd.set_option('display.max_colwidth', 10)
+#pd.set_option('display.max_colwidth', 10)
 
 results = pd.read_csv("abac-adjudications-detailed.txt",sep=";",index_col=False)
 
@@ -156,8 +154,32 @@ new_column_names = [
 for column_name in new_column_names:
     results[column_name] = 0
 
-results.to_csv('abac-adjudications-full-NEW.txt')
+results['M-Dig'] = results['medium'].apply(lambda row: 1 if ('Digital' in row) else 0)
+results['M-TV'] = results['medium'].apply(lambda row: 1 if ('Television' in row) else 0)
+results['M-NP'] = results['medium'].apply(lambda row: 1 if ('Naming/packaging' in row) else 0)
+results['M-R'] = results['medium'].apply(lambda row: 1 if ('Radio' in row) else 0)
+results['M-C'] = results['medium'].apply(lambda row: 1 if ('Cinema' in row) else 0)
+results['M-O'] = results['medium'].apply(lambda row: 1 if ('Outdoor' in row) else 0)
+results['M-POS'] = results['medium'].apply(lambda row: 1 if ('Point of sale' in row) else 0)
+results['M-P'] = results['medium'].apply(lambda row: 1 if ('Print' in row) else 0)
 
+results["C-ai"] = results['code_section'].apply(lambda row: 1 if ("(a)(i)" in row) else 0)
+results["C-aii"] = results['code_section'].apply(lambda row: 1 if ("(a)(ii)" in row) else 0)
+results["C-aiii"] = results['code_section'].apply(lambda row: 1 if ("(a)(iii)" in row) else 0)
+results["C-aiv"] = results['code_section'].apply(lambda row: 1 if ("(a)(iv)" in row) else 0)
+results["C-bi"] = results['code_section'].apply(lambda row: 1 if ("(b)(i)" in row) else 0)
+results["C-bii"] = results['code_section'].apply(lambda row: 1 if ("(b)(ii)" in row) else 0)
+results["C-biii"] = results['code_section'].apply(lambda row: 1 if ("(b)(iii)" in row) else 0)
+results["C-biv"] = results['code_section'].apply(lambda row: 1 if ("(b)(iv)" in row) else 0)
+results["C-ci"] = results['code_section'].apply(lambda row: 1 if ("(c)(i)" in row) else 0)
+results["C-cii"] = results['code_section'].apply(lambda row: 1 if ("(c)(ii)" in row) else 0)
+results["C-ciii"] = results['code_section'].apply(lambda row: 1 if ("(c)(iii)" in row) else 0)
+results["C-civ"] = results['code_section'].apply(lambda row: 1 if ("(c)(iv)" in row) else 0)
+results["C-d"] = results['code_section'].apply(lambda row: 1 if ("(d)" in row) else 0)
+
+print(results[["code_section",'C-bi','C-d','C-bii','C-ai']])
+
+results.to_csv('abac-adjudications-full-NEW.txt',sep=";",index=False)
 
 #print(abac_adjudications_pages_urls)
 
