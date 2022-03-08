@@ -1,9 +1,10 @@
 import enum
 from os import sep
+from pathlib import Path
 from posixpath import split
 from bs4 import BeautifulSoup
 
-import requests, logging
+import requests, logging, redis
 #import build_url_list as bul
 #import abac_reader as ar
 import pandas as pd
@@ -16,7 +17,7 @@ def check_for_more_entries(li,i):
             entries += check_for_more_entries(li,i+1)
     return entries
 
-def read_urls_list(url):
+def scrape_adjudication_page(url):
 
     page = requests.get(url)
     soup = BeautifulSoup(page.content, "html.parser")
@@ -82,7 +83,8 @@ def get_urls_from_abac_page(page_url):
         anchor_element = heading.a 
         url = anchor_element.get('href')
         #urls_array.append(anchor_element.get('href'))
-        urls_array.append(read_urls_list(url))
+        urls_array.append(scrape_adjudication_page(url))
+        #TODO: In here I can work out how to stop when the data is already recorded so as not to retrive it again.
     return urls_array
 
 def write_primary_results_csv_file(lines_array):
@@ -104,34 +106,35 @@ def write_final_results_csv_file():
 
     print(results)
 
-    new_column_names = [
-    "M-Dig",
-    "M-TV",
-    "M-NP",
-    "M-R",
-    "M-C",
-    "M-O",
-    "M-POS",
-    "M-P",
-    "C-ai",
-    "C-aii",
-    "C-aiii",
-    "C-aiv",
-    "C-bi",
-    "C-bii",
-    "C-biii",
-    "C-biv",
-    "C-ci",
-    "C-cii",
-    "C-ciii",
-    "C-civ",
-    "C-d",
-    "Month",
-    "Year"
-    ]
 
-    for column_name in new_column_names:
-        results[column_name] = 0
+    # new_column_names = [
+    # "M-Dig",
+    # "M-TV",
+    # "M-NP",
+    # "M-R",
+    # "M-C",
+    # "M-O",
+    # "M-POS",
+    # "M-P",
+    # "C-ai",
+    # "C-aii",
+    # "C-aiii",
+    # "C-aiv",
+    # "C-bi",
+    # "C-bii",
+    # "C-biii",
+    # "C-biv",
+    # "C-ci",
+    # "C-cii",
+    # "C-ciii",
+    # "C-civ",
+    # "C-d",
+    # "Month",
+    # "Year"
+    # ]
+
+    # for column_name in new_column_names:
+    #     results[column_name] = 0
 
     results['M-Dig'] = results['medium'].apply(lambda row: 1 if ('Digital' in row) else 0)
     results['M-TV'] = results['medium'].apply(lambda row: 1 if ('Television' in row) else 0)
@@ -158,20 +161,23 @@ def write_final_results_csv_file():
 
     #print(results[["code_section",'C-bi','C-d','C-bii','C-ai']])
 
+    print(results[["medium",'M-Dig','M-TV']])
+    print(results.loc[0:3,'medium':'M-Dig'])
+
     results.to_csv('abac-adjudications-full-NEW.txt',sep=";",index=False)
 
 def get_final_page_index():
-    
+    logging.debug("CALL: get_final_page_index()")
     #take most recent highest index from database
     #increment until response 400, rewriting variable for each 200 response
     #update value in database
     #return final page number (first 400 response index, minus one)
     
     #TODO: Retrieve final index from database
-    DB_LAST_PAGE_INDEX = 80
     final_page_number = DB_LAST_PAGE_INDEX
 
-    logging.debug(("Final page number from DB is: {var1}").format(var1=final_page_number))
+
+    logging.debug(f"Final page number from DB is: {final_page_number}")
 
     code = 200
 
@@ -180,15 +186,15 @@ def get_final_page_index():
     while code == 200:
         final_page_number += 1
         print(final_page_number)
-        final_page_url = ("{index_base_url}{last_page_number}/").format(index_base_url=BASE_URL, last_page_number=final_page_number)
+        final_page_url = f"{BASE_URL}{final_page_number}/"
         final_page_response = requests.get(final_page_url)
-        logging.debug(('Final page URL response {final_page_response}').format(final_page_response=final_page_response))
+        logging.debug(f'Final page URL response {final_page_response}')
         code = final_page_response.status_code
     
     final_page_number -= 1
 
     logging.debug("Loop exited")
-    logging.debug(("Final Page Number is: {var1}").format(var1=final_page_number))
+    logging.debug(f"Final Page Number is: {final_page_number}")
 
     #TODO: update database with new final index
     if DB_LAST_PAGE_INDEX == final_page_number:
@@ -196,11 +202,12 @@ def get_final_page_index():
     else:
         logging.debug('Last page index to be updated.')
 
+    logging.debug("EXIT: get_final_page_index()")
     return final_page_number
 
 def is_new_adjudications():
-
-    newest_adjudications_page_index_url = ('{index_base_url}1/').format(index_base_url=BASE_URL)
+    logging.debug('CALL: is_new_adjudications()')
+    newest_adjudications_page_index_url = f'{BASE_URL}1/'
 
     page = requests.get(newest_adjudications_page_index_url)
     soup=BeautifulSoup(page.content, "html.parser")
@@ -210,34 +217,88 @@ def is_new_adjudications():
 
     anchor_element = list_of_headings[0].a 
     url = anchor_element.get('href')
+    logging.debug('EXIT: is_new_adjudications()')
     return url == get_most_recent_adjudication_in_db()
 
 def get_most_recent_adjudication_in_db():
-    #TODO: Get most recent adjudication url from database
-    return 'https://www.abac.org.au/adjudication/12-22/'
+    return MOST_RECENT_ADJUDICATION_URL_FROM_DATABASE
+
+class DbData:
+    rd = ''
+    host, port ='192.168.1.117',6379
+    def __init__(this):
+        this.rd = redis.Redis(this.host, this.port, decode_responses=True)
+
+    def get_last_page_index(this):
+        return int(this.rd.get("LAST_PAGE_INDEX"))
+        
+    def get_base_url(this):
+        return this.rd.get("BASE_URL")
+    
+    def get_most_recent_adjudication(this):
+        return this.rd.get("MOST_RECENT_ADJUDICATION")
+    
+    def set_abac_data(this,json_string):
+        this.rd.execute_command('JSON.SET','abac_data','$',json_string)
+
+    def add_abac_data(this,json_string):
+        this.rd.execute_command('JSON.ARRAPPEND','abac_data','$',json_string)
+    
+    def get_abac_data(this):
+        return this.rd.execute_command('JSON.GET','abac_data')
 
 ########################################
 # Begin
 ########################################
 
+#TODO: Some variables need to be renamed to be more accurate. (urls_array and abac_adjudications_pages_urls)
+
 logging.basicConfig(level=logging.DEBUG)
 logging.debug('abac-reader started')
 
-BASE_URL = 'https://www.abac.org.au/adjudication/page/'
+db_data = DbData()
 
+BASE_URL = db_data.get_base_url()
 
+DB_LAST_PAGE_INDEX = db_data.get_last_page_index()
+
+MOST_RECENT_ADJUDICATION_URL_FROM_DATABASE = db_data.get_most_recent_adjudication()
+
+df_existing_abac_data = pd.read_json(db_data.get_abac_data())
+print(df_existing_abac_data)
 
 if not is_new_adjudications():
     
     logging.debug("New adjudications have been found.")
 
-    #logging.debug(('Final page URL response {final_page_response}').format(final_page_response=final_page_response))
-
     abac_adjudications_pages_urls = []
+    array_of_abac_data = []
 
-    for page_index in range(1, get_final_page_index()):
-        print(page_index)
-        abac_adjudications_pages_urls.extend(get_urls_from_abac_page(('{index_base_url}{page_index}').format(index_base_url=BASE_URL,page_index=page_index)))
+    for page_index in range(1, 2):
+    #for page_index in range(1, get_final_page_index()):
+        abac_adjudications_pages_urls.extend(get_urls_from_abac_page(f'{BASE_URL}{page_index}'))        
+
+    columns = "title;url;date;decision;brand;company;outcome;nature;medium;code_section;temp_column"
+    columns = columns.split(';')
+
+    for line in abac_adjudications_pages_urls:
+        array_of_abac_data.append(line.split(';'))
+        # df_abac_adjudication = pd.DataFrame([line.split(';')],columns=columns)
+        # json_abac_adjudication = df_abac_adjudication.to_json(orient="records")
+        # db_data.add_abac_data(json_abac_adjudication)
+
+    print(array_of_abac_data)
+
+    
+    df_new_abac_adjudications = pd.DataFrame(array_of_abac_data,columns=columns)
+    #TODO: remove temp column
+    print(df_new_abac_adjudications)
+
+    df_updated_abac_adjudications = pd.concat([df_new_abac_adjudications,df_existing_abac_data],ignore_index=True)
+
+    json_abac_adjudications = df_updated_abac_adjudications.to_json(orient="records")
+    print(json_abac_adjudications)
+    db_data.set_abac_data(json_abac_adjudications)
 
     #write_primary_results_csv_file(abac_adjudications_pages_urls)
 
@@ -252,6 +313,6 @@ if not is_new_adjudications():
 
     #for url in abac_adjudications_pages_urls:
         #print(url)
-        #print(ar.read_urls_list(url))
+        #print(ar.scrape_adjudication_page(url))
 else:
     logging.debug("There are no new adjudications.")
