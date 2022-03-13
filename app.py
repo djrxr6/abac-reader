@@ -1,10 +1,14 @@
 from os import sep
 from posixpath import split
-from xmlrpc.client import ResponseError
 from bs4 import BeautifulSoup
+from datetime import datetime
 
-import requests, logging, redis
+import requests, logging
 import pandas as pd
+from modules.abac_scraped_list_pages import AbacScrapedListPages
+from modules.redis_connector import RedisConnector
+from modules.abac_data import AbacData
+from modules.abac_scraped_content import AbacScrapedContent
 
 def check_for_more_entries(li,i):
     entries = 0
@@ -14,19 +18,25 @@ def check_for_more_entries(li,i):
             entries += check_for_more_entries(li,i+1)
     return entries
 
-def scrape_adjudication_page(url):
+def scrape_adjudication_page(url,index_page):
 
-    page = requests.get(url)
-    soup = BeautifulSoup(page.content, "html.parser")
+    if ASC.is_adjudication_page_in_scraped_data(url):
+        article = ASC.load_audjdication_page_content(url)
+        article = BeautifulSoup(article, "html.parser")
+    else:
+        page = requests.get(url)
+        soup = BeautifulSoup(page.content, "html.parser")
+        article = soup.find("article")
+        ASC.insert_scraped_content(url,str(article))
 
-    title = soup.find("h1").text
-    element_list = soup.find_all(["dt","dd"])
-
+    title = article.find("h1").text
+    element_list = article.find_all(["dt","dd"])
+    
     #Field Separator
     fs = ";"
 
     #Variable for building output line
-    output_line = title + fs + url + fs
+    output_line = title + fs + index_page + fs+ url + fs
 
     list_iterator = 0
     while list_iterator < len(element_list):
@@ -68,19 +78,32 @@ def scrape_adjudication_page(url):
     return output_line
 
 def get_urls_from_abac_page(page_url):
-    page = requests.get(page_url)
-    soup=BeautifulSoup(page.content, "html.parser")
 
-    main_article_element = soup.find("article", {"class":"archive", "id":"content"})
-    list_of_headings = main_article_element.find_all('h2')
+    #TODO I can cache these pages in Redis, but unlike the adjudication pages, I'll need to destroy when 
+    #a new adjudication is detected.
+
+    if ASLP.is_adjudication_page_in_scraped_data(page_url):
+        article = ASLP.load_audjdication_page_content(page_url)
+        article = BeautifulSoup(article, "html.parser")
+    else:
+        page = requests.get(page_url)
+        soup = BeautifulSoup(page.content, "html.parser")
+        article = soup.find("article", {"class":"archive", "id":"content"})
+        ASLP.insert_scraped_content(page_url,str(article))
+
+    #page = requests.get(page_url)
+    #soup=BeautifulSoup(page.content, "html.parser")
+
+    
+    list_of_headings = article.find_all('h2')
 
     urls_array = []
 
     for heading in list_of_headings:
         anchor_element = heading.a 
         url = anchor_element.get('href')
-        urls_array.append(scrape_adjudication_page(url))
-        #TODO: In here I can work out how to stop when the data is already recorded so as not to retrive it again.
+        if not db_data.is_adjudication_page_in_data(url):
+            urls_array.append(scrape_adjudication_page(url,page_url))
     return urls_array
 
 def write_primary_results_csv_file(lines_array):
@@ -106,40 +129,51 @@ def write_final_results_csv_file():
 
     results.to_csv('abac-adjudications-full-NEW.txt',sep=";",index=False)
 
+def res_upd_helper(target_string, search_string):
+    if target_string is None:
+        var = 0
+    else:
+        var = 1 if(search_string in target_string) else 0
+        var = 0 if('Part' in target_string) else var
+    return var
+
+
 def add_new_columns(df):
 
-    df['M-Dig'] = df['medium'].apply(lambda row: 1 if ('Digital' in row) else 0)
-    df['M-TV'] = df['medium'].apply(lambda row: 1 if ('Television' in row) else 0)
-    df['M-NP'] = df['medium'].apply(lambda row: 1 if ('Naming/packaging' in row) else 0)
-    df['M-R'] = df['medium'].apply(lambda row: 1 if ('Radio' in row) else 0)
-    df['M-C'] = df['medium'].apply(lambda row: 1 if ('Cinema' in row) else 0)
-    df['M-O'] = df['medium'].apply(lambda row: 1 if ('Outdoor' in row) else 0)
-    df['M-POS'] = df['medium'].apply(lambda row: 1 if ('Point of sale' in row) else 0)
-    df['M-P'] = df['medium'].apply(lambda row: 1 if ('Print' in row) else 0)
+    df['M-Dig'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Digital'))
+    df['M-TV'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Television'))
+    df['M-NP'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Naming/packaging'))
+    df['M-R'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Radio'))
+    df['M-C'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Cinema'))
+    df['M-O'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Outdoor'))
+    df['M-POS'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Point of sale'))
+    df['M-P'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Print'))
 
-    df["C-ai"] = df['code_section'].apply(lambda row: 1 if ("(a)(i)" in row) else 0)
-    df["C-aii"] = df['code_section'].apply(lambda row: 1 if ("(a)(ii)" in row) else 0)
-    df["C-aiii"] = df['code_section'].apply(lambda row: 1 if ("(a)(iii)" in row) else 0)
-    df["C-aiv"] = df['code_section'].apply(lambda row: 1 if ("(a)(iv)" in row) else 0)
-    df["C-bi"] = df['code_section'].apply(lambda row: 1 if ("(b)(i)" in row) else 0)
-    df["C-bii"] = df['code_section'].apply(lambda row: 1 if ("(b)(ii)" in row) else 0)
-    df["C-biii"] = df['code_section'].apply(lambda row: 1 if ("(b)(iii)" in row) else 0)
-    df["C-biv"] = df['code_section'].apply(lambda row: 1 if ("(b)(iv)" in row) else 0)
-    df["C-ci"] = df['code_section'].apply(lambda row: 1 if ("(c)(i)" in row) else 0)
-    df["C-cii"] = df['code_section'].apply(lambda row: 1 if ("(c)(ii)" in row) else 0)
-    df["C-ciii"] = df['code_section'].apply(lambda row: 1 if ("(c)(iii)" in row) else 0)
-    df["C-civ"] = df['code_section'].apply(lambda row: 1 if ("(c)(iv)" in row) else 0)
-    df["C-d"] = df['code_section'].apply(lambda row: 1 if ("(d)" in row) else 0)
+    df['C-ai'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(a)(i)'))
+    df['C-aii'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(a)(ii)'))
+    df['C-aiii'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(a)(iii)'))
+    df['C-aiv'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(a)(iv)'))
+    df['C-bi'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(b)(i)'))
+    df['C-bii'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(b)(ii)'))
+    df['C-biii'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(b)(iii)'))
+    df['C-biv'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(b)(iv)'))
+    df['C-ci'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(c)(i)'))
+    df['C-cii'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(c)(ii)'))
+    df['C-ciii'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(c)(iii)'))
+    df['C-civ'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(c)(iv)'))
+    df['C-d'] = df['code_section'].apply(lambda x: res_upd_helper(x, '(d)'))
+
+    date = pd.DatetimeIndex(df['date'])
+
+    df['year'] = date.year
+    df['month'] = date.month
+    df['day'] = date.day
 
     return df
 
 def get_final_page_index():
 
     logging.debug("CALL: get_final_page_index()")
-    #take most recent highest index from database
-    #increment until response 400, rewriting variable for each 200 response
-    #update value in database
-    #return final page number (first 400 response index, minus one)
     
     final_page_number = DB_LAST_PAGE_INDEX
 
@@ -191,57 +225,27 @@ def is_new_adjudications():
     db_url = db_data.get_most_recent_adjudication_url().strip('"')
     logging.debug(f'Most recent adjudication URL in DB is {db_url}')
 
+    logging.debug(f'New adjudications? {url == db_url}')
+
     logging.debug('EXIT: is_new_adjudications()')
     return url == db_url
-
-#def get_most_recent_adjudication_in_db():
-#    return MOST_RECENT_ADJUDICATION_URL_FROM_DATABASE
-
-class DbData:
-    rd = ''
-    host, port = '192.168.1.117',6379
-
-    def __init__(this):
-        this.rd = redis.Redis(this.host, this.port, decode_responses=True)
-
-    def get_last_page_index(this):
-        return int(this.rd.get("LAST_PAGE_INDEX"))
-    
-    def set_last_page_index(this, val):
-        this.rd.set("LAST_PAGE_INDEX",val)
-        
-    def get_base_url(this):
-        return this.rd.get("BASE_URL")
-    
-    def get_most_recent_adjudication_url(this):
-        try:
-            last_index = this.rd.execute_command('JSON.ARRLEN','abac_data','$')
-        except redis.exceptions.ResponseError:
-            url_at_index = ''
-        else:
-            last_record_position = last_index[0] -1
-            url_at_index = this.rd.execute_command('JSON.GET' ,'abac_data', f'[{last_record_position}].url')
-        return url_at_index
-    
-    def set_abac_data(this,json_string):
-        this.rd.execute_command('JSON.SET','abac_data','$',json_string)
-
-    def add_abac_data(this,json_string):
-        this.rd.execute_command('JSON.ARRAPPEND','abac_data','$',json_string)
-    
-    def get_abac_data(this):
-        return this.rd.execute_command('JSON.GET','abac_data')
 
 ########################################
 # Begin
 ########################################
 
 #TODO: Some variables need to be renamed to be more accurate. (urls_array and abac_adjudications_pages_urls)
+#TODO: Cache index pages. If a new adjudication or index page appears, destroy the cache.
 
 logging.basicConfig(level=logging.DEBUG)
 logging.debug('abac-reader started')
 
-db_data = DbData()
+redis_connector = RedisConnector()
+
+db_data = AbacData(redis_connector)
+
+ASC = AbacScrapedContent(redis_connector)
+ASLP = AbacScrapedListPages(redis_connector)
 
 BASE_URL = db_data.get_base_url()
 
@@ -252,7 +256,7 @@ json_existing_abac_data = db_data.get_abac_data()
 if json_existing_abac_data is None:
     df_existing_abac_data = pd.DataFrame()
 else:
-    df_existing_abac_data = pd.read_json(db_data.get_abac_data())
+    df_existing_abac_data = pd.read_json(db_data.get_abac_data(), convert_dates=False)
     #TODO: Need to look into how I can stop date conversion. Might be in the Redis class "decode"
 
 if not is_new_adjudications():
@@ -263,9 +267,10 @@ if not is_new_adjudications():
     array_of_abac_data = []
 
     for page_index in range(1, get_final_page_index()):
+    #for page_index in range(36, 37):
         abac_adjudications_pages_urls.extend(get_urls_from_abac_page(f'{BASE_URL}{page_index}'))        
 
-    columns = "title;url;date;decision;brand;company;outcome;nature;medium;code_section;temp_column"
+    columns = "title;index_page;url;date;decision;brand;company;outcome;nature;medium;code_section;temp_column"
     columns = columns.split(';')
 
     for line in abac_adjudications_pages_urls:
@@ -276,6 +281,7 @@ if not is_new_adjudications():
     df_new_abac_adjudications = add_new_columns(df_new_abac_adjudications)
     df_new_abac_adjudications = df_new_abac_adjudications.iloc[::-1]
 
+    
     df_updated_abac_adjudications = pd.concat([df_existing_abac_data,df_new_abac_adjudications],ignore_index=True)
 
     json_abac_adjudications = df_updated_abac_adjudications.to_json(orient="records")
@@ -283,7 +289,7 @@ if not is_new_adjudications():
     db_data.set_abac_data(json_abac_adjudications)
 
     #Currently keeping functionality to write csv file output
-    #write_primary_results_csv_file(abac_adjudications_pages_urls)
+    write_primary_results_csv_file(abac_adjudications_pages_urls)
     #write_final_results_csv_file()
 
 else:
