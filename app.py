@@ -1,6 +1,6 @@
 from os import sep
 from posixpath import split
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, ResultSet
 import redis
 
 import requests, logging
@@ -12,7 +12,7 @@ from modules.abac_scraped_content import AbacScrapedContent
 
 import modules.abac_data_vars as advars
 
-def check_for_more_entries(li,i):
+def check_for_more_entries(li: ResultSet,i: int) -> int:
     entries = 0
     if i < len(li):
         if li[i].name == "dd":
@@ -20,10 +20,10 @@ def check_for_more_entries(li,i):
             entries += check_for_more_entries(li,i+1)
     return entries
 
-def scrape_adjudication_page(url,index_page):
+def scrape_adjudication_page(url: str,index_page: str) -> str:
 
     if ASC.is_adjudication_page_in_scraped_data(url):
-        article = ASC.load_audjdication_page_content(url)
+        article = ASC.fetch_audjdication_page_content(url)
         article = BeautifulSoup(article, "html.parser")
     else:
         page = requests.get(url)
@@ -79,15 +79,12 @@ def scrape_adjudication_page(url,index_page):
 
     return output_line
 
-def get_urls_from_abac_page(page_url):
+def get_urls_from_abac_page(page_url: str) -> list:
     logging.debug(f'Page Index URL:{page_url}')
-
-    #TODO I can cache these pages in Redis, but unlike the adjudication pages, I'll need to destroy when 
-    #a new adjudication is detected.
 
     if ASLP.is_adjudication_page_in_scraped_data(page_url):
         logging.debug(f'Index page cached.')
-        article = ASLP.load_audjdication_page_content(page_url)
+        article = ASLP.fetch_audjdication_page_content(page_url)
         article = BeautifulSoup(article, "html.parser")
     else:
         logging.debug(f'Index page not cached. Adding to DB.')
@@ -109,7 +106,7 @@ def get_urls_from_abac_page(page_url):
     logging.debug(f'Parsing of adjudications complete...')
     return urls_array
 
-def write_primary_results_csv_file(lines_array):
+def write_primary_results_csv_file(lines_array: list) -> None:
 
     output_file_name = "abac-adjudications-detailed.txt"
 
@@ -120,7 +117,7 @@ def write_primary_results_csv_file(lines_array):
         for line in lines_array:
             output_file.write(line + "\n")
 
-def write_final_results_csv_file():
+def write_final_results_csv_file() -> None:
     results = pd.read_csv("abac-adjudications-detailed.txt",sep=";",index_col=False)
 
     print(results)
@@ -132,15 +129,15 @@ def write_final_results_csv_file():
 
     results.to_csv('abac-adjudications-full-NEW.txt',sep=";",index=False)
 
-def res_upd_helper(target_string, search_string):
-    if target_string is None:
+def res_upd_helper(target: str, search: str) -> int:
+    if target is None:
         var = 0
     else:
-        var = 1 if(search_string in target_string) else 0
-        var = 0 if('Part' in target_string) else var
+        var = 1 if(search in target) else 0
+        var = 0 if('Part' in target) else var
     return var
 
-def add_new_columns(df):
+def add_new_columns(df) -> pd.DataFrame:
 
     df['M-Dig'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Digital'))
     df['M-TV'] = df['medium'].apply(lambda x: res_upd_helper(x, 'Television'))
@@ -173,7 +170,7 @@ def add_new_columns(df):
 
     return df
 
-def get_final_page_index():
+def get_final_page_index() -> int:
 
     logging.debug("CALL: get_final_page_index()")
 
@@ -214,7 +211,7 @@ def get_final_page_index():
 
     return range_boundary
 
-def is_new_adjudications():
+def is_new_adjudications() -> bool:
     logging.debug('CALL: is_new_adjudications()')
     newest_adjudications_page_index_url = f'{BASE_URL}1/'
 

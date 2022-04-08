@@ -7,5 +7,5 @@ class RedisConnector:
     def __init__(this) -> None:
         this.rd = redis.Redis(this.host, this.port, decode_responses=True)
 
-    def get_redis_object(this):
+    def get_redis_object(this) -> redis:
         return this.rd
