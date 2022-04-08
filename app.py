@@ -1,7 +1,7 @@
 from os import sep
 from posixpath import split
 from bs4 import BeautifulSoup
-from datetime import datetime
+import redis
 
 import requests, logging
 import pandas as pd
@@ -9,6 +9,8 @@ from modules.abac_scraped_list_pages import AbacScrapedListPages
 from modules.redis_connector import RedisConnector
 from modules.abac_data import AbacData
 from modules.abac_scraped_content import AbacScrapedContent
+
+import modules.abac_data_vars as advars
 
 def check_for_more_entries(li,i):
     entries = 0
@@ -78,32 +80,33 @@ def scrape_adjudication_page(url,index_page):
     return output_line
 
 def get_urls_from_abac_page(page_url):
+    logging.debug(f'Page Index URL:{page_url}')
 
     #TODO I can cache these pages in Redis, but unlike the adjudication pages, I'll need to destroy when 
     #a new adjudication is detected.
 
     if ASLP.is_adjudication_page_in_scraped_data(page_url):
+        logging.debug(f'Index page cached.')
         article = ASLP.load_audjdication_page_content(page_url)
         article = BeautifulSoup(article, "html.parser")
     else:
+        logging.debug(f'Index page not cached. Adding to DB.')
         page = requests.get(page_url)
         soup = BeautifulSoup(page.content, "html.parser")
         article = soup.find("article", {"class":"archive", "id":"content"})
         ASLP.insert_scraped_content(page_url,str(article))
 
-    #page = requests.get(page_url)
-    #soup=BeautifulSoup(page.content, "html.parser")
-
-    
     list_of_headings = article.find_all('h2')
 
     urls_array = []
-
+    logging.debug(f'Parsing adjudications...')
     for heading in list_of_headings:
         anchor_element = heading.a 
         url = anchor_element.get('href')
+        logging.debug(f'Parsing adjudication {url}...')
         if not db_data.is_adjudication_page_in_data(url):
             urls_array.append(scrape_adjudication_page(url,page_url))
+    logging.debug(f'Parsing of adjudications complete...')
     return urls_array
 
 def write_primary_results_csv_file(lines_array):
@@ -136,7 +139,6 @@ def res_upd_helper(target_string, search_string):
         var = 1 if(search_string in target_string) else 0
         var = 0 if('Part' in target_string) else var
     return var
-
 
 def add_new_columns(df):
 
@@ -174,8 +176,10 @@ def add_new_columns(df):
 def get_final_page_index():
 
     logging.debug("CALL: get_final_page_index()")
+
+    STORED_FINAL_PAGE_INDEX_NUMBER = ADVARS.get_last_page_index()
     
-    final_page_number = DB_LAST_PAGE_INDEX
+    final_page_number = STORED_FINAL_PAGE_INDEX_NUMBER
 
     logging.debug(f"Final page number from DB is: {final_page_number}")
 
@@ -198,11 +202,13 @@ def get_final_page_index():
     logging.debug(f"Final Page Number is: {final_page_number}")
     logging.debug(f"Range boundary is: {range_boundary}")
 
-    if DB_LAST_PAGE_INDEX == final_page_number:
+    if STORED_FINAL_PAGE_INDEX_NUMBER == final_page_number:
         logging.debug('Last page index has not changed.')
     else:
         logging.debug('Last page index to be updated.')
-        db_data.set_last_page_index(final_page_number)
+        #db_data.set_last_page_index(final_page_number)
+        ADVARS.set_last_page_index(final_page_number)
+        ADVARS.update_db()
 
     logging.debug("EXIT: get_final_page_index()")
 
@@ -225,17 +231,16 @@ def is_new_adjudications():
     db_url = db_data.get_most_recent_adjudication_url().strip('"')
     logging.debug(f'Most recent adjudication URL in DB is {db_url}')
 
-    logging.debug(f'New adjudications? {url == db_url}')
+    logging.debug(f'New adjudications? {url != db_url}')
 
     logging.debug('EXIT: is_new_adjudications()')
-    return url == db_url
+    return url != db_url
 
 ########################################
 # Begin
 ########################################
 
 #TODO: Some variables need to be renamed to be more accurate. (urls_array and abac_adjudications_pages_urls)
-#TODO: Cache index pages. If a new adjudication or index page appears, destroy the cache.
 
 logging.basicConfig(level=logging.DEBUG)
 logging.debug('abac-reader started')
@@ -246,10 +251,9 @@ db_data = AbacData(redis_connector)
 
 ASC = AbacScrapedContent(redis_connector)
 ASLP = AbacScrapedListPages(redis_connector)
+ADVARS = advars.AbacDataVars(redis_connector)
 
-BASE_URL = db_data.get_base_url()
-
-DB_LAST_PAGE_INDEX = db_data.get_last_page_index()
+BASE_URL = ADVARS.get_base_url()
 
 json_existing_abac_data = db_data.get_abac_data()
 
@@ -257,24 +261,29 @@ if json_existing_abac_data is None:
     df_existing_abac_data = pd.DataFrame()
 else:
     df_existing_abac_data = pd.read_json(db_data.get_abac_data(), convert_dates=False)
-    #TODO: Need to look into how I can stop date conversion. Might be in the Redis class "decode"
 
-if not is_new_adjudications():
+if is_new_adjudications():
     
     logging.debug("New adjudications have been found.")
+
+    #Destroy the cached index pages data
+    ASLP.insert_new_data("[]")
 
     abac_adjudications_pages_urls = []
     array_of_abac_data = []
 
     for page_index in range(1, get_final_page_index()):
-    #for page_index in range(36, 37):
         abac_adjudications_pages_urls.extend(get_urls_from_abac_page(f'{BASE_URL}{page_index}'))        
 
     columns = "title;index_page;url;date;decision;brand;company;outcome;nature;medium;code_section;temp_column"
     columns = columns.split(';')
 
     for line in abac_adjudications_pages_urls:
-        array_of_abac_data.append(line.split(';'))
+        logging.debug(f'{line}')
+        row = line.split(';')        
+        if len(row) == len(columns) - 1:
+            row.append(' ')
+        array_of_abac_data.append(row)
     
     df_new_abac_adjudications = pd.DataFrame(array_of_abac_data,columns=columns)
     df_new_abac_adjudications = df_new_abac_adjudications.drop(columns=['temp_column'])

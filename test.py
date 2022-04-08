@@ -1,4 +1,5 @@
 import modules.abac_data as ad
+import modules.abac_data_vars as advars
 import modules.abac_scraped_list_pages as aslp
 import modules.redis_connector as rc
 import modules.abac_scraped_content as asc
@@ -6,11 +7,15 @@ import modules.abac_scraped_content as asc
 RC = rc.RedisConnector()
 
 AD = ad.AbacData(RC)
+ADVARS = advars.AbacDataVars(RC)
 ASC = asc.AbacScrapedContent(RC)
 ASLP = aslp.AbacScrapedListPages(RC)
 
 url = 'https://www.abac.org.au/adjudication/11-22/'
 url = 'https://www.abac.org.au/adjudication/129-18/'
+
+print(ADVARS.get_last_page_index())
+print(ADVARS.get_base_url())
 
 #print(ASLP.get_content_list())
 
