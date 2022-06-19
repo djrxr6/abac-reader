@@ -13,6 +13,9 @@ class ScrapedContent:
         this.rd = redis_connector.get_redis_object()
         print(this.redis_key)
 
+    def set_redis_key(this, redis_key: str) -> None:
+        this.redis_key = redis_key
+
     def fetch_content_from_db(this) -> str:
         return this.rd.execute_command('JSON.GET',this.redis_key)
 
@@ -30,13 +33,13 @@ class ScrapedContent:
     #     json_string = df.to_json(orient="records")
     #     this.insert_new_data(json_string)
     
-    def sort_data(this, sort_columns:list) -> None:
-        json_string = this.rd.execute_command('JSON.GET',this.redis_key)
-        df = pd.read_json(json_string, convert_dates=False)
-        df = df.drop_duplicates()
-        df = df.sort_values(by=sort_columns)
-        json_string = df.to_json(orient="records")
-        this.insert_new_data(json_string)
+    # def sort_data(this, sort_columns:list) -> None:
+    #     json_string = this.rd.execute_command('JSON.GET',this.redis_key)
+    #     df = pd.read_json(json_string, convert_dates=False)
+    #     df = df.drop_duplicates()
+    #     df = df.sort_values(by=sort_columns)
+    #     json_string = df.to_json(orient="records")
+    #     this.insert_new_data(json_string)
     
     def insert_new_data(this, json_string: str) -> None:
         this.rd.execute_command('JSON.SET',this.redis_key,'$',json_string)

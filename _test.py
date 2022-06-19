@@ -1,18 +1,14 @@
-import modules.abac_data as ad
-import modules.abac_data_vars as advars
-import modules.abac_scraped_list_pages as aslp
-import modules.redis_connector as rc
-import modules.abac_scraped_content as asc
+from modules import redis_connector, abac_data, abac_data_vars
+from modules import scraped_content
 
-RC = rc.RedisConnector()
+RC = redis_connector.RedisConnector()
 
-AD = ad.AbacData(RC)
-ADVARS = advars.AbacDataVars(RC)
-ASC = asc.AbacScrapedContent(RC)
-ASLP = aslp.AbacScrapedListPages(RC)
+ASC = scraped_content.ScrapedContent(RC)
+ASC.set_redis_key('abac_data:scraped_content_from_adjudication_pages')
 
-url = 'https://www.abac.org.au/adjudication/11-22/'
-url = 'https://www.abac.org.au/adjudication/129-18/'
+
+#-----------------------------------------------------------------
+ADVARS = abac_data_vars.AbacDataVars(RC)
 
 def test_get_base_url():
     assert ADVARS.get_base_url() == 'https://www.abac.org.au/adjudication/page/'
@@ -20,26 +16,40 @@ def test_get_base_url():
 def test_get_last_page_index():
     ADVARS.set_last_page_index(1)
     assert ADVARS.get_last_page_index() == 1
+#-----------------------------------------------------------------
+AD = abac_data.AbacData(RC)
 
-def test_url_in_database():
+def test_adjudication_url_in_database():
     url = 'https://www.abac.org.au/adjudication/11-22/'
     assert AD.is_adjudication_page_in_data(url)
 
-def test_url_not_in_database():
+def test_adjudication_url_not_in_database():
     url = 'https://www.abac.org.au/adjudication/129-188/'
     assert not AD.is_adjudication_page_in_data(url)
 
-print(ADVARS.get_last_page_index())
-print(ADVARS.get_base_url())
+#-----------------------------------------------------------------
 
-#print(ASLP.get_content_list())
+ASLP = scraped_content.ScrapedContent(RC)
+ASLP.set_redis_key('abac_data:scraped_adjudication_list_pages')
 
-#print(ASC.get_content_list())
+def test_adjudication_index_page_url_in_database():
+    url = 'https://www.abac.org.au/adjudication/page/1'
+    assert ASLP.is_adjudication_page_in_scraped_data(url)
+
+def test_adjudication_index_page_url_not_in_database():
+    url = 'https://www.abac.org.au/adjudication/page/A/'
+    assert not ASLP.is_adjudication_page_in_scraped_data(url)
+
+
+
+print(ASLP.get_content_list())
+
+print(ASC.get_content_list())
 
 #ASC.drop_duplicates()
 
 #AD.sort_data('date')
-AD.sort_data(['year','month','day'])
+#AD.sort_data(['year','month','day'])
 
 #print(AD.get_most_recent_adjudication_url())
 
