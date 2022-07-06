@@ -9,4 +9,4 @@ COPY . .
 
 RUN python -m pytest
 
-RUN ["python","app.py"]
+CMD ["python","app.py"]
