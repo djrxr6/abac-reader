@@ -255,7 +255,7 @@ def is_new_adjudications() -> bool:
 ########################################
 
 # TODO: Some variables need to be renamed to be more accurate. (urls_array and abac_adjudications_pages_urls)
-
+# Test for git login verification.
 logging.basicConfig(level=logging.DEBUG)
 logging.debug("abac-reader started")
 
