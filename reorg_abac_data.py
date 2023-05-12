@@ -28,21 +28,33 @@ def main():
     df['id'] = df.reset_index().index
     df = df.astype({col: bool for col in df.columns[11:32]})
     
-    medium: list = df['medium'].str.split(',', expand=True).stack().reset_index(level=1)
-    medium_df = pd.DataFrame(set(medium[0]))
-    medium_df = medium_df.reset_index()
-
-    medium_df.columns = ['id','label']
-    print(medium_df)
-    print(df.info())
+    set_mediums_db(df)
+    set_code_section_db(df)
 
     print(pd.unique(df['outcome']))
-    print(pd.unique(df['medium']))
 
     json_string: str = df.to_json(orient='records')
     redis_conector.get_redis_object().execute_command('JSON.SET', 'abac_data:deep_object', "$",json_string)
     #Could store additional dataframes in redis
     #Weekly/Monthly counts of medium and code secrions
+
+
+def set_mediums_db(df):
+    set_items_to_db_from_df_column(df,'medium')
+
+def set_code_section_db(df) -> None:
+    set_items_to_db_from_df_column(df,'outcome')
+
+def set_items_to_db_from_df_column(df: pd.DataFrame, column: str) -> None:
+    items: list = df[column].str.split(',', expand=True).stack().reset_index(level=1)
+    new_df = pd.DataFrame(set(items[0]))
+    new_df = new_df.reset_index()
+    new_df.columns = ['id','label']
+    json_string = new_df.to_json(orient='records')
+    
+    redis_conector: RedisConnector = RedisConnector()
+    redis_conector.get_redis_object().execute_command('JSON.SET', f"abac_data:{column}", "$",json_string)
+
 
 if __name__ == "__main__":
     main()
