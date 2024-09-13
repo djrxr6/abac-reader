@@ -5,15 +5,17 @@
 #       
 
 import pandas as pd
+from icecream import ic
 
 from modules.redis_connector import RedisConnector
 from modules.abac_data import AbacData
+
+pd.set_option('display.max_columns', None)
 
 def main():
     redis_conector: RedisConnector = RedisConnector()
     abac_data: AbacData = AbacData(redis_conector) 
     data = abac_data.fetch_content_from_db()
-    print(data)
     column_datatypes = {
         'title': 'string',
         'url': 'string',
@@ -26,7 +28,10 @@ def main():
     }
     df = pd.read_json(data, dtype=column_datatypes)
     df['id'] = df.reset_index().index
-    df = df.astype({col: bool for col in df.columns[11:32]})
+
+    ic(df)
+    df = df.astype({col: bool for col in df.columns[12:33]})
+    ic(df)
     
     set_mediums_db(df)
     set_code_section_db(df)

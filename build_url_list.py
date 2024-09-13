@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 
-import abac_reader as ar
+from modules.ABACScraper import ABACScraper
 
 def get_urls_from_abac_page(page_url,results_data_frame):
     page = requests.get(page_url)
@@ -17,7 +17,7 @@ def get_urls_from_abac_page(page_url,results_data_frame):
         anchor_element = heading.a 
         url = anchor_element.get('href')
         #urls_array.append(anchor_element.get('href'))
-        print(ar.read_urls_list(url))
+        print(ABACScraper().read_urls_list(url))
 
 
     return urls_array

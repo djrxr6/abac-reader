@@ -4,6 +4,7 @@ import logging
 import pandas as pd
 
 from modules.redis_connector import RedisConnector
+from icecream import ic
 
 
 class ScrapedContent:
@@ -23,6 +24,9 @@ class ScrapedContent:
 
     def get_content_list(this) -> str:
         return this.fetch_content_from_db()
+
+    def get_record_count(this) -> int:
+        return this.rd.execute_command("JSON.ARRLEN", this.redis_key)
 
     def destroy_content(this) -> None:
         this.rd.execute_command("JSON.DEL", this.redis_key)
@@ -48,7 +52,10 @@ class ScrapedContent:
 
     def fetch_audjdication_page_content(this, url: str) -> str:
         json_string = this.rd.execute_command("JSON.GET", this.redis_key)
-        df = pd.read_json(json_string)
+        data_dict = json.loads(json_string)
+        df = pd.DataFrame(data_dict)
+
+        #df = pd.read_json(json_string)
         df = df.loc[df["url"] == url, ["scraped_content"]]
         return df.to_string(index=False)
 
