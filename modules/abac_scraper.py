@@ -129,7 +129,7 @@ class ABACScraper:
             anchor_element = heading.a
             url = anchor_element.get("href")
             logging.debug(f"Parsing adjudication {url}...")
-            if not self.db_data.is_adjudication_page_in_data(url):
+            if not self.db_data.is_adjudication_page_in_scraped_data(url):
                 logging.debug(f"Adjudication {url} not in DB.")
                 urls_array.append(self.scrape_adjudication_page(url, page_url))
             else:

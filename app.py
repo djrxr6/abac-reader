@@ -11,7 +11,7 @@ from modules.abac_data import AbacData
 from modules.abac_scraped_content import AbacScrapedContent
 from modules.abac_scraped_list_pages import AbacScrapedListPages
 from modules.redis_connector import RedisConnector
-from modules.ABACScraper import ABACScraper
+from modules.abac_scraper import ABACScraper
 
 from icecream import ic
 
@@ -20,7 +20,7 @@ logging.basicConfig(level=logging.DEBUG)
 logging.debug("abac-reader started")
 
 pd.set_option('display.max_columns', None)
-#redis_connector = RedisConnector()
+redis_connector = RedisConnector()
 
 db_data = AbacData(RedisConnector())
 
@@ -32,12 +32,12 @@ ABACScraper = ABACScraper(ASC, ASLP, ADVARS, db_data)
 
 def main() -> None:
 
-    json_existing_abac_data = db_data.get_abac_data()
+    json_existing_abac_data = db_data.get_content_list()
 
     if json_existing_abac_data is None:
         df_existing_abac_data = pd.DataFrame()
     else:
-        df_existing_abac_data = pd.read_json(db_data.get_abac_data(), convert_dates=False)
+        df_existing_abac_data = pd.read_json(db_data.get_content_list(), convert_dates=False)
 
     if ABACScraper.is_new_adjudications():
 
@@ -66,7 +66,8 @@ def main() -> None:
             [df_existing_abac_data, df_new_abac_adjudications], ignore_index=True
         )
         # Add combined new and existing data to the database.
-        db_data.set_abac_data(df_updated_abac_adjudications.to_json(orient="records"))
+        #db_data.insert_new_data(df_updated_abac_adjudications.to_json(orient="records"))
+        db_data.insert_new_data(df_updated_abac_adjudications.to_dict(orient="records"))
 
         df_updated_abac_adjudications.to_csv("abac-adjudications-full.csv", index=False)
 
