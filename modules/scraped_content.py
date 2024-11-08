@@ -20,6 +20,7 @@ class ScrapedContent:
         self.redis_key = redis_key
 
     def fetch_content_from_db(self) -> str:
+        ic(f"Fetching content from DB for {self.redis_key}")
         return self.rd.execute_command("JSON.GET", self.redis_key)
 
     def get_content_list(self) -> str:

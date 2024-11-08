@@ -135,6 +135,7 @@ class ABACScraper:
             else:
                 logging.debug(f"Adjudication {url} already in DB.")
         logging.debug(f"Parsing of adjudications complete...")
+        ic(urls_array)
         return urls_array
 
     def scrape_adjudication_page(self, url: str, index_page: str) -> str:
@@ -218,10 +219,10 @@ class ABACScraper:
         oldest_adjudications_page_index_url = f"{self.ADVARS.get_base_url()}{self.ADVARS.get_last_page_index()}/"
         ic(oldest_adjudications_page_index_url)
         # get the total number of records in the adjucations list pages and multiply it by ten
-        ic(self.ASLP.get_record_count() /10 % 10 )
-        ic(self.ASLP.get_record_count() )
+        #ic(self.ASLP.get_record_count() /10 % 10 )
+        #ic(self.ASLP.get_record_count() )
         #get the total number of adjudications and get the remainder of the division by ten.
-        ic(self.ASC.get_record_count() % 10)
+        #ic(self.ASC.get_record_count() % 10)
         # get the total number of records and modulo by the previous    number. taking the remainder.
         # get the number of urls on the final list page
         # compare the modulod result to the numbe of urls on the final list page.
